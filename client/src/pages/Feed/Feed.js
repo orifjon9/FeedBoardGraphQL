@@ -22,17 +22,29 @@ class Feed extends Component {
   };
 
   componentDidMount() {
-    fetch('http://localhost:4000/auth/status', {
+    fetch('http://localhost:4000/graphql', {
+      method: 'POST',
       headers: {
-        'Authorization': 'Bearer ' + this.props.token
-      }
+        'Authorization': 'Bearer ' + this.props.token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        query: `
+          query {
+            user(userId: "${this.props.userId}") {
+              _id
+              status
+            }
+          }`
+      })
     })
       .then(res => {
-        if (res.status !== 200) {
+        if (res.errors && res.errors[0].status !== 200) {
           throw new Error('Failed to fetch user status.');
         }
         return res.json();
       })
+      .then(res => res.data.user)
       .then(resData => {
         this.setState({ status: resData.status });
       })
@@ -91,17 +103,41 @@ class Feed extends Component {
       page--;
       this.setState({ postPage: page });
     }
-    fetch('http://localhost:4000/feed/posts?page=' + page, {
+
+    const graphqlQuery = {
+      query: `query {
+        posts(page:${page}, size:3) {
+          posts {
+            _id
+            title
+            content
+            imageUrl
+            creator {
+              name
+            }
+            createdAt
+            updatedAt
+          }
+          totalItems
+        }
+      }`
+    };
+    console.log('loading posts');
+    fetch('http://localhost:4000/graphql', {
+      method: 'POST',
       headers: {
-        'Authorization': 'Bearer ' + this.props.token
-      }
+        'Authorization': 'Bearer ' + this.props.token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(graphqlQuery)
     })
       .then(res => {
-        if (res.status !== 200) {
+        if (res.errors && res.errors[0].status !== 200) {
           throw new Error('Failed to fetch posts.');
         }
         return res.json();
       })
+      .then(res => res.data.posts)
       .then(resData => {
         this.setState({
           posts: resData.posts.map(post => {

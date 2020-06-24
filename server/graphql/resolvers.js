@@ -6,7 +6,7 @@ const User = require('../models/user');
 const Post = require('../models/post');
 
 module.exports = {
-  createUser: async function({ userInput }, req) {
+  createUser: async function ({ userInput }, req) {
     //   const email = args.userInput.email;
     const errors = [];
     if (!validator.isEmail(userInput.email)) {
@@ -39,12 +39,12 @@ module.exports = {
       name: userInput.name,
       password: hashedPw
     });
-    
+
     const createdUser = await user.save();
 
     return { ...createdUser._doc, _id: createdUser._id.toString() };
   },
-  login: async function({ email, password }) {
+  login: async function ({ email, password }) {
     const user = await User.findOne({ email: email });
     if (!user) {
       const error = new Error('User not found.');
@@ -58,7 +58,7 @@ module.exports = {
       error.code = 401;
       throw error;
     }
-    
+
     const token = jwt.sign(
       {
         userId: user._id.toString(),
@@ -70,8 +70,8 @@ module.exports = {
 
     return { token: token, userId: user._id.toString() };
   },
-  createPost: async function({ postInput }, req) {
-    if(!req.isAuth){
+  createPost: async function ({ postInput }, req) {
+    if (!req.isAuth) {
       const error = new Error('Not Authenticated');
       error.code = 401;
       throw error;
@@ -100,7 +100,7 @@ module.exports = {
     }
 
     const user = await User.findById(req.userId);
-    if(!user){
+    if (!user) {
       const error = new Error('Not Authenticated');
       error.code = 401;
       throw error;
@@ -122,5 +122,91 @@ module.exports = {
       createdAt: createdPost.createdAt.toISOString(),
       updatedAt: createdPost.updatedAt.toISOString()
     };
+  },
+  posts: async function ({ page, size }, req) {
+    if (!req.isAuth) {
+      const error = new Error('Not Authenticated');
+      error.code = 401;
+      throw error;
+    }
+
+    if (!page) {
+      page = 1;
+    }
+
+    if (!size) {
+      size = 10;
+    }
+
+    const totalItemsTask = Post.countDocuments();
+    const postsTask = Post.find()
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * size)
+      .limit(size)
+      .populate('creator');
+
+    const post = (await postsTask).map(p => {
+      return {
+        ...p._doc,
+        _id: p._id.toString(),
+        createdAt: p.createdAt.toISOString(),
+        updatedAt: p.updatedAt.toISOString()
+      }
+    });
+    return {
+      posts: post,
+      totalItems: await totalItemsTask
+    };
+  },
+  post: async function ({ postId }, req) {
+    if (!req.isAuth) {
+      const error = new Error('Not Authenticated');
+      error.code = 401;
+      throw error;
+    }
+
+    const post = await Post.findById(postId)
+      .populate('creator');
+    if (post) {
+      return {
+        ...post._doc,
+        _id: post._id.toString(),
+        createdAt: post.createdAt.toISOString(),
+        updatedAt: post.updatedAt.toISOString()
+      }
+    } else {
+      const error = new Error('Not Found');
+      error.code = 404;
+      throw error;
+    }
+  },
+  user: async function ({ userId }, req) {
+    if (!req.isAuth) {
+      const error = new Error('Not Authenticated');
+      error.code = 401;
+      throw error;
+    }
+
+    const user = await User.findById(req.userId)
+      .populate('posts');
+
+    if (!user) {
+      const error = new Error('User not found.');
+      error.code = 404;
+      throw error;
+    }
+
+    return {
+      ...user._doc,
+      _id: user._id.toString(),
+      posts: user.posts.map(p => {
+        return {
+          ...p._doc,
+          _id: p._id.toString(),
+          createdAt: p.createdAt.toISOString(),
+          updatedAt: p.updatedAt.toISOString()
+        }
+      })
+    }
   }
-};
+}
