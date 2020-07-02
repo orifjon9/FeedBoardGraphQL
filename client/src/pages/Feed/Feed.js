@@ -155,27 +155,38 @@ class Feed extends Component {
 
   statusUpdateHandler = event => {
     event.preventDefault();
-    fetch('http://localhost:4000/auth/status', {
-      method: 'PATCH',
+    const graphqlQuery = {
+      query: `
+        mutation UpdateUserStatus($userStatus: String!) {
+          updateStatus(status: $userStatus) {
+            status
+          }
+        }
+      `,
+      variables: {
+        userStatus: this.state.status
+      }
+    };
+    fetch('http://localhost:4000/graphql', {
+      method: 'POST',
       headers: {
-        'Authorization': 'Bearer ' + this.props.token,
+        Authorization: 'Bearer ' + this.props.token,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        status: this.state.status
-      })
+      body: JSON.stringify(graphqlQuery)
     })
       .then(res => {
-        if (res.status !== 200 && res.status !== 201) {
-          throw new Error("Can't update status!");
-        }
         return res.json();
       })
       .then(resData => {
+        if (resData.errors) {
+          throw new Error('Fetching posts failed!');
+        }
         console.log(resData);
       })
       .catch(this.catchError);
   };
+
 
   newPostHandler = () => {
     this.setState({ isEditing: true });
@@ -274,14 +285,22 @@ class Feed extends Component {
 
   deletePostHandler = postId => {
     this.setState({ postsLoading: true });
-    fetch('http://localhost:4000/feed/posts/' + postId, {
-      method: 'DELETE',
+    fetch('http://localhost:4000/graphql', {
+      method: 'POST',
       headers: {
-        'Authorization': 'Bearer ' + this.props.token
-      }
+        'Authorization': 'Bearer ' + this.props.token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        query: `
+          mutation {
+            deletePost(id: "${postId}")
+          }
+        `
+      })
     })
       .then(res => {
-        if (res.status !== 200 && res.status !== 201) {
+        if (res.errors && res.errors[0].status !== 200 && res.errors[0].status !== 201) {
           throw new Error('Deleting a post failed!');
         }
       })
